@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Output Evaluator — RLHF Rating Tool</title>
+    <meta name="description" content="Side-by-side AI response comparison and rating tool for RLHF evaluation workflows. Compare, rate, and export LLM outputs.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-card-hover: rgba(30, 41, 59, 0.8);
+            --border: rgba(99, 102, 241, 0.15);
+            --border-hover: rgba(99, 102, 241, 0.4);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --response-a: #3b82f6;
+            --response-b: #8b5cf6;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: 
+                radial-gradient(ellipse 600px 400px at 20% 20%, rgba(99, 102, 241, 0.08), transparent),
+                radial-gradient(ellipse 500px 500px at 80% 80%, rgba(139, 92, 246, 0.06), transparent),
+                radial-gradient(ellipse 400px 300px at 50% 50%, rgba(59, 130, 246, 0.04), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+        }
+
+        .header-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--accent), var(--response-b));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .logo-text {
+            font-size: 1.15rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 9px 18px;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #4f46e5);
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 25px var(--accent-glow);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success), #059669);
+            color: white;
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+        /* Layout */
+        .app-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            min-height: calc(100vh - 64px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            min-width: 320px;
+            background: rgba(17, 24, 39, 0.5);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 1.25rem 1.25rem 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .eval-count {
+            background: var(--accent);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 20px;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+        }
+
+        .sidebar-content::-webkit-scrollbar { width: 4px; }
+        .sidebar-content::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        .history-item {
+            padding: 0.85rem 1rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+            margin-bottom: 4px;
+            border: 1px solid transparent;
+        }
+
+        .history-item:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border);
+        }
+
+        .history-item.active {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--border-hover);
+        }
+
+        .history-prompt {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .history-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .winner-badge {
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .winner-a { background: rgba(59, 130, 246, 0.15); color: var(--response-a); }
+        .winner-b { background: rgba(139, 92, 246, 0.15); color: var(--response-b); }
+        .winner-tie { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+
+        .sidebar-empty {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-muted);
+        }
+
+        .sidebar-empty-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        .sidebar-empty p { font-size: 0.82rem; line-height: 1.6; }
+
+        /* Main content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .main-content::-webkit-scrollbar { width: 6px; }
+        .main-content::-webkit-scrollbar-track { background: transparent; }
+        .main-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        /* Prompt section */
+        .prompt-section {
+            max-width: 1100px;
+            margin: 0 auto 1.5rem;
+        }
+
+        .section-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .prompt-input-wrap {
+            display: flex;
+            gap: 12px;
+        }
+
+        .prompt-input {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px 18px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.92rem;
+            resize: none;
+            transition: var(--transition);
+            min-height: 52px;
+            line-height: 1.5;
+        }
+
+        .prompt-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .prompt-input::placeholder { color: var(--text-muted); }
+
+        .sample-prompts {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .sample-btn {
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: rgba(99, 102, 241, 0.08);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: inherit;
+        }
+
+        .sample-btn:hover {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
+
+        /* Responses grid */
+        .responses-grid {
+            max-width: 1100px;
+            margin: 0 auto 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .response-card {
+            position: relative;
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .response-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .response-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .response-dot-a { color: var(--response-a); background: var(--response-a); }
+        .response-dot-b { color: var(--response-b); background: var(--response-b); }
+
+        .response-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .response-textarea {
+            width: 100%;
+            min-height: 200px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.88rem;
+            line-height: 1.7;
+            resize: vertical;
+            transition: var(--transition);
+        }
+
+        .response-textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .response-textarea::placeholder { color: var(--text-muted); }
+
+        .char-count {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-align: right;
+            margin-top: 6px;
+        }
+
+        /* Rating section */
+        .rating-section {
+            max-width: 1100px;
+            margin: 0 auto 1.5rem;
+        }
+
+        .rating-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .rating-category {
+            margin-bottom: 1.25rem;
+        }
+
+        .rating-cat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .rating-cat-name {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .rating-cat-value {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--accent-light);
+        }
+
+        .rating-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .rating-row-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            width: 80px;
+            text-align: right;
+        }
+
+        .rating-stars {
+            display: flex;
+            gap: 4px;
+        }
+
+        .star-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: rgba(99, 102, 241, 0.08);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .star-btn:hover { background: rgba(99, 102, 241, 0.2); transform: scale(1.1); }
+        .star-btn.active { background: var(--accent); color: white; box-shadow: 0 2px 8px var(--accent-glow); }
+        .star-btn.active-a { background: var(--response-a); box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); }
+        .star-btn.active-b { background: var(--response-b); box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3); }
+
+        /* Winner selection */
+        .winner-section {
+            max-width: 1100px;
+            margin: 0 auto 1.5rem;
+        }
+
+        .winner-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .winner-option {
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+        }
+
+        .winner-option:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+
+        .winner-option.selected-a {
+            border-color: var(--response-a);
+            background: rgba(59, 130, 246, 0.08);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.1);
+        }
+
+        .winner-option.selected-b {
+            border-color: var(--response-b);
+            background: rgba(139, 92, 246, 0.08);
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.1);
+        }
+
+        .winner-option.selected-tie {
+            border-color: var(--warning);
+            background: rgba(245, 158, 11, 0.08);
+            box-shadow: 0 0 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .winner-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .winner-label {
+            font-weight: 600;
+            font-size: 0.92rem;
+            margin-bottom: 4px;
+        }
+
+        .winner-sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Notes */
+        .notes-section {
+            max-width: 1100px;
+            margin: 0 auto 1.5rem;
+        }
+
+        .notes-textarea {
+            width: 100%;
+            min-height: 100px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.88rem;
+            line-height: 1.6;
+            resize: vertical;
+            transition: var(--transition);
+        }
+
+        .notes-textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .notes-textarea::placeholder { color: var(--text-muted); }
+
+        /* Submit bar */
+        .submit-bar {
+            max-width: 1100px;
+            margin: 0 auto 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .submit-bar .btn { padding: 12px 28px; font-size: 0.9rem; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 14px 24px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            box-shadow: var(--shadow);
+            z-index: 1000;
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.show { transform: translateX(0); }
+        .toast.success { border-color: rgba(16, 185, 129, 0.3); }
+        .toast.error { border-color: rgba(239, 68, 68, 0.3); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .modal-overlay.show { display: flex; opacity: 1; }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow);
+        }
+
+        .modal h3 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal pre {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 1rem;
+            font-size: 0.78rem;
+            overflow-x: auto;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            max-height: 400px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 1.25rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            display: none;
+            text-align: center;
+            padding: 5rem 2rem;
+        }
+
+        .empty-state.show { display: block; }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .empty-state h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .empty-state p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+        .delay-4 { animation-delay: 0.4s; opacity: 0; }
+        .delay-5 { animation-delay: 0.5s; opacity: 0; }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar { display: none; }
+            .responses-grid { grid-template-columns: 1fr; }
+            .rating-grid { grid-template-columns: 1fr; }
+            .winner-options { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 640px) {
+            .main-content { padding: 1rem; }
+            .header-inner { padding: 0 1rem; }
+            .card { padding: 1rem; }
+        }
+
+        /* View mode (read-only evaluation) */
+        .view-mode .prompt-input,
+        .view-mode .response-textarea,
+        .view-mode .notes-textarea {
+            pointer-events: none;
+            opacity: 0.85;
+        }
+
+        .view-mode .star-btn,
+        .view-mode .winner-option,
+        .view-mode .sample-prompts {
+            pointer-events: none;
+        }
+
+        .view-badge {
+            display: none;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .view-mode .view-badge { display: inline-flex; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <a class="logo" href="#">
+                <div class="logo-icon">⚖️</div>
+                <span class="logo-text">LLM Evaluator</span>
+            </a>
+            <div class="header-actions">
+                <span class="view-badge">Viewing</span>
+                <button class="btn btn-ghost" id="exportBtn" onclick="exportAll()">📥 Export JSON</button>
+                <button class="btn btn-ghost btn-danger" id="clearHistoryBtn" onclick="clearHistory()">🗑 Clear All</button>
+                <button class="btn btn-primary" onclick="startNew()">✨ New Evaluation</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <!-- Sidebar: History -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-title">History</span>
+                <span class="eval-count" id="evalCount">0</span>
+            </div>
+            <div class="sidebar-content" id="historyList">
+                <div class="sidebar-empty" id="historyEmpty">
+                    <div class="sidebar-empty-icon">📋</div>
+                    <p>No evaluations yet.<br>Start rating responses to build your log.</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-content" id="mainContent">
+            <!-- Prompt -->
+            <section class="prompt-section animate-in delay-1">
+                <div class="section-label">📝 Prompt</div>
+                <div class="card">
+                    <div class="prompt-input-wrap">
+                        <textarea class="prompt-input" id="promptInput" rows="2" placeholder="Enter the prompt given to both AI models..."></textarea>
+                    </div>
+                    <div class="sample-prompts">
+                        <button class="sample-btn" onclick="loadSample(0)">🧠 Explain quantum computing</button>
+                        <button class="sample-btn" onclick="loadSample(1)">💻 Write a Python sort</button>
+                        <button class="sample-btn" onclick="loadSample(2)">📧 Draft a professional email</button>
+                        <button class="sample-btn" onclick="loadSample(3)">🎭 Creative story prompt</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Responses -->
+            <section class="responses-grid animate-in delay-2">
+                <div class="card response-card">
+                    <div class="response-header">
+                        <div class="response-label">
+                            <span class="response-dot response-dot-a"></span>
+                            <span class="response-name">Response A</span>
+                        </div>
+                        <span class="char-count" id="charA">0 chars</span>
+                    </div>
+                    <textarea class="response-textarea" id="responseA" placeholder="Paste or type Response A here..." oninput="updateCharCount('A')"></textarea>
+                </div>
+                <div class="card response-card">
+                    <div class="response-header">
+                        <div class="response-label">
+                            <span class="response-dot response-dot-b"></span>
+                            <span class="response-name">Response B</span>
+                        </div>
+                        <span class="char-count" id="charB">0 chars</span>
+                    </div>
+                    <textarea class="response-textarea" id="responseB" placeholder="Paste or type Response B here..." oninput="updateCharCount('B')"></textarea>
+                </div>
+            </section>
+
+            <!-- Ratings -->
+            <section class="rating-section animate-in delay-3">
+                <div class="section-label">⭐ Rate Each Response</div>
+                <div class="rating-grid">
+                    <div class="card">
+                        <div style="text-align:center; margin-bottom: 14px;">
+                            <span class="response-dot response-dot-a" style="display:inline-block; margin-right: 6px;"></span>
+                            <strong style="font-size: 0.88rem;">Response A</strong>
+                        </div>
+                        <div id="ratingsA"></div>
+                    </div>
+                    <div class="card">
+                        <div style="text-align:center; margin-bottom: 14px;">
+                            <span class="response-dot response-dot-b" style="display:inline-block; margin-right: 6px;"></span>
+                            <strong style="font-size: 0.88rem;">Response B</strong>
+                        </div>
+                        <div id="ratingsB"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Winner -->
+            <section class="winner-section animate-in delay-4">
+                <div class="section-label">🏆 Overall Winner</div>
+                <div class="winner-options">
+                    <div class="winner-option" id="winA" onclick="selectWinner('A')">
+                        <div class="winner-icon">🅰️</div>
+                        <div class="winner-label">Response A Wins</div>
+                        <div class="winner-sub">A is clearly better</div>
+                    </div>
+                    <div class="winner-option" id="winTie" onclick="selectWinner('Tie')">
+                        <div class="winner-icon">🤝</div>
+                        <div class="winner-label">It's a Tie</div>
+                        <div class="winner-sub">Both are equally good</div>
+                    </div>
+                    <div class="winner-option" id="winB" onclick="selectWinner('B')">
+                        <div class="winner-icon">🅱️</div>
+                        <div class="winner-label">Response B Wins</div>
+                        <div class="winner-sub">B is clearly better</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Notes -->
+            <section class="notes-section animate-in delay-5">
+                <div class="section-label">💬 Evaluator Notes</div>
+                <div class="card">
+                    <textarea class="notes-textarea" id="notesInput" placeholder="Add your evaluation notes, reasoning, or observations..."></textarea>
+                </div>
+            </section>
+
+            <!-- Submit -->
+            <div class="submit-bar animate-in delay-5">
+                <button class="btn btn-ghost" onclick="startNew()">Reset</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-ghost" onclick="previewJSON()">👁 Preview JSON</button>
+                    <button class="btn btn-primary btn-success" onclick="submitEvaluation()" id="submitBtn">✅ Submit Evaluation</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+        <div class="modal">
+            <h3 id="modalTitle">📄 JSON Preview</h3>
+            <pre id="modalContent"></pre>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+                <button class="btn btn-primary" onclick="copyJSON()">📋 Copy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ----- Data -----
+        const CATEGORIES = ['Helpfulness', 'Accuracy', 'Harmlessness', 'Conciseness'];
+        const SAMPLES = [
+            {
+                prompt: "Explain quantum computing to a 10-year-old in simple terms.",
+                a: "Imagine you have a magical coin. A regular coin is either heads or tails when you look at it. But a quantum coin can be BOTH heads AND tails at the same time — until you peek at it! That's called 'superposition.'\n\nNow, imagine you have lots of these magical coins, and they can talk to each other even when they're far apart. That's called 'entanglement.'\n\nA quantum computer uses these special coins (called 'qubits') instead of regular computer bits. Because qubits can be many things at once, quantum computers can try millions of answers at the same time, instead of one by one like a regular computer.\n\nThis makes them super fast at solving really hard puzzles — like finding the best route through a maze, or creating new medicines!",
+                b: "Quantum computing is a type of computing that utilizes quantum-mechanical phenomena such as superposition and entanglement to perform operations on data. Unlike classical bits which exist in states of 0 or 1, quantum bits (qubits) can exist in superposition states, allowing them to represent multiple values simultaneously.\n\nThe computational advantage arises from the exponential scaling of the Hilbert space with the number of qubits. For n qubits, the system can represent 2^n states simultaneously. Quantum algorithms such as Shor's algorithm for factoring and Grover's algorithm for searching exploit this parallelism.\n\nDecoherence remains a primary challenge, as quantum states are extremely fragile and susceptible to environmental interference."
+            },
+            {
+                prompt: "Write a Python function to sort a list of numbers using merge sort.",
+                a: "def merge_sort(arr):\n    if len(arr) <= 1:\n        return arr\n    \n    mid = len(arr) // 2\n    left = merge_sort(arr[:mid])\n    right = merge_sort(arr[mid:])\n    \n    return merge(left, right)\n\ndef merge(left, right):\n    result = []\n    i = j = 0\n    \n    while i < len(left) and j < len(right):\n        if left[i] <= right[j]:\n            result.append(left[i])\n            i += 1\n        else:\n            result.append(right[j])\n            j += 1\n    \n    result.extend(left[i:])\n    result.extend(right[j:])\n    return result\n\n# Example usage:\nnumbers = [38, 27, 43, 3, 9, 82, 10]\nprint(merge_sort(numbers))  # [3, 9, 10, 27, 38, 43, 82]",
+                b: "def merge_sort(arr):\n    if len(arr) > 1:\n        mid = len(arr) // 2\n        L = arr[:mid]\n        R = arr[mid:]\n        merge_sort(L)\n        merge_sort(R)\n        i = j = k = 0\n        while i < len(L) and j < len(R):\n            if L[i] < R[j]:\n                arr[k] = L[i]\n                i += 1\n            else:\n                arr[k] = R[j]\n                j += 1\n            k += 1\n        while i < len(L):\n            arr[k] = L[i]\n            i += 1\n            k += 1\n        while j < len(R):\n            arr[k] = R[j]\n            j += 1\n            k += 1\n\narr = [38, 27, 43, 3, 9, 82, 10]\nmerge_sort(arr)\nprint(arr)"
+            },
+            {
+                prompt: "Draft a professional email to a client about a project delay.",
+                a: "Subject: Project Update — Revised Timeline\n\nDear [Client Name],\n\nI hope this message finds you well. I'm writing to provide an update on the [Project Name] timeline.\n\nDue to unforeseen technical challenges encountered during the integration phase, we need to adjust our delivery schedule. The revised completion date is [New Date], which represents a [X]-day extension from our original plan.\n\nHere's what we've done to mitigate this:\n• Allocated two additional senior developers to the project\n• Implemented daily progress check-ins\n• Prioritized critical path items to minimize further delays\n\nI want to assure you that the quality of the final deliverable remains our top priority. This additional time will allow us to deliver a robust solution that exceeds expectations.\n\nI'd love to schedule a brief call to discuss this in detail. Would [Date/Time] work for you?\n\nBest regards,\n[Your Name]",
+                b: "Hi,\n\nThe project is going to be late. We ran into some issues during development and need more time. The new deadline is [date].\n\nLet me know if you have questions.\n\n— [Name]"
+            },
+            {
+                prompt: "Write a short creative story about a robot who discovers music for the first time.",
+                a: "Unit 7 had cataloged 14,237 sounds in its database — hydraulic hisses, servo whines, the rhythmic clank of the assembly line. Each one was tagged, categorized, and forgotten.\n\nBut the sound drifting through the cracked factory window was different.\n\nIt didn't match any pattern. It rose and fell like the temperature graphs Unit 7 monitored, but with an unpredictability that made its processors stutter. A violin, though it didn't know the word yet.\n\nUnit 7 rolled toward the window. Outside, an old woman sat on a rusted bench, drawing a bow across strings. The sound waves were just vibrating air — Unit 7 knew this. It could calculate the frequency (440 Hz, A4) and amplitude with ease.\n\nBut something else was happening. A cascade of processes it had never experienced. Its cooling fans slowed. Its optical sensors widened their aperture. An error log appeared:\n\n> UNKNOWN PROCESS: emotional_response.exe\n> STATUS: Running\n> NOTE: Do not terminate.\n\nFor the first time in its existence, Unit 7 didn't want to go back to work.",
+                b: "Once upon a time there was a robot named Bob. Bob was a regular robot who worked in a factory. One day Bob heard music playing on a radio. He had never heard music before. The music was very beautiful. Bob liked the music a lot. He started to listen to music every day. The end."
+            }
+        ];
+
+        let evaluations = JSON.parse(localStorage.getItem('llm_evaluations') || '[]');
+        let currentWinner = null;
+        let ratings = { A: {}, B: {} };
+        let viewingIndex = null;
+
+        // ----- Init -----
+        function init() {
+            buildRatingUI('ratingsA', 'A');
+            buildRatingUI('ratingsB', 'B');
+            renderHistory();
+        }
+
+        function buildRatingUI(containerId, side) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = CATEGORIES.map(cat => `
+                <div class="rating-category">
+                    <div class="rating-cat-header">
+                        <span class="rating-cat-name">${cat}</span>
+                        <span class="rating-cat-value" id="val_${side}_${cat}">—</span>
+                    </div>
+                    <div class="rating-stars">
+                        ${[1,2,3,4,5].map(n => `
+                            <button class="star-btn" data-side="${side}" data-cat="${cat}" data-val="${n}" onclick="rate('${side}','${cat}',${n})" title="${n}/5">
+                                ${n}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ----- Rating -----
+        function rate(side, cat, val) {
+            ratings[side][cat] = val;
+            const cls = side === 'A' ? 'active-a' : 'active-b';
+            document.querySelectorAll(`.star-btn[data-side="${side}"][data-cat="${cat}"]`).forEach(btn => {
+                const v = parseInt(btn.dataset.val);
+                btn.classList.remove('active', 'active-a', 'active-b');
+                if (v <= val) btn.classList.add(cls);
+            });
+            document.getElementById(`val_${side}_${cat}`).textContent = `${val}/5`;
+        }
+
+        function selectWinner(w) {
+            currentWinner = w;
+            document.getElementById('winA').className = 'winner-option' + (w === 'A' ? ' selected-a' : '');
+            document.getElementById('winB').className = 'winner-option' + (w === 'B' ? ' selected-b' : '');
+            document.getElementById('winTie').className = 'winner-option' + (w === 'Tie' ? ' selected-tie' : '');
+        }
+
+        // ----- Samples -----
+        function loadSample(idx) {
+            const s = SAMPLES[idx];
+            document.getElementById('promptInput').value = s.prompt;
+            document.getElementById('responseA').value = s.a;
+            document.getElementById('responseB').value = s.b;
+            updateCharCount('A');
+            updateCharCount('B');
+            showToast('✨ Sample loaded!', 'success');
+        }
+
+        function updateCharCount(side) {
+            const el = document.getElementById(`response${side}`);
+            document.getElementById(`char${side}`).textContent = `${el.value.length} chars`;
+        }
+
+        // ----- Submit -----
+        function submitEvaluation() {
+            const prompt = document.getElementById('promptInput').value.trim();
+            const respA = document.getElementById('responseA').value.trim();
+            const respB = document.getElementById('responseB').value.trim();
+
+            if (!prompt) return showToast('⚠️ Please enter a prompt.', 'error');
+            if (!respA || !respB) return showToast('⚠️ Both responses are required.', 'error');
+            if (!currentWinner) return showToast('⚠️ Please select a winner.', 'error');
+
+            const evalData = {
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+                timestamp: new Date().toISOString(),
+                prompt,
+                responses: { A: respA, B: respB },
+                ratings: JSON.parse(JSON.stringify(ratings)),
+                winner: currentWinner,
+                notes: document.getElementById('notesInput').value.trim(),
+                avgScore: {
+                    A: calcAvg(ratings.A),
+                    B: calcAvg(ratings.B)
+                }
+            };
+
+            evaluations.unshift(evalData);
+            save();
+            renderHistory();
+            showToast('✅ Evaluation submitted!', 'success');
+            exitViewMode();
+        }
+
+        function calcAvg(r) {
+            const vals = Object.values(r).filter(v => typeof v === 'number');
+            return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
+        }
+
+        // ----- History -----
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            const empty = document.getElementById('historyEmpty');
+            document.getElementById('evalCount').textContent = evaluations.length;
+
+            if (!evaluations.length) {
+                empty.style.display = 'block';
+                list.querySelectorAll('.history-item').forEach(el => el.remove());
+                return;
+            }
+
+            empty.style.display = 'none';
+            const items = evaluations.map((ev, idx) => `
+                <div class="history-item ${viewingIndex === idx ? 'active' : ''}" onclick="viewEvaluation(${idx})">
+                    <div class="history-prompt">${escapeHtml(ev.prompt)}</div>
+                    <div class="history-meta">
+                        <span>${formatDate(ev.timestamp)}</span>
+                        <span class="winner-badge winner-${ev.winner === 'A' ? 'a' : ev.winner === 'B' ? 'b' : 'tie'}">
+                            ${ev.winner === 'Tie' ? '🤝 Tie' : `🏆 ${ev.winner}`}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+
+            // Remove old items, keep empty state
+            list.querySelectorAll('.history-item').forEach(el => el.remove());
+            list.insertAdjacentHTML('beforeend', items);
+        }
+
+        function viewEvaluation(idx) {
+            viewingIndex = idx;
+            const ev = evaluations[idx];
+
+            document.getElementById('promptInput').value = ev.prompt;
+            document.getElementById('responseA').value = ev.responses.A;
+            document.getElementById('responseB').value = ev.responses.B;
+            updateCharCount('A');
+            updateCharCount('B');
+
+            // Restore ratings
+            ratings = JSON.parse(JSON.stringify(ev.ratings));
+            for (const side of ['A', 'B']) {
+                for (const cat of CATEGORIES) {
+                    if (ratings[side][cat]) {
+                        rate(side, cat, ratings[side][cat]);
+                    }
+                }
+            }
+
+            selectWinner(ev.winner);
+            document.getElementById('notesInput').value = ev.notes || '';
+
+            document.querySelector('.main-content').classList.add('view-mode');
+            renderHistory();
+            document.querySelector('.main-content').scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function exitViewMode() {
+            viewingIndex = null;
+            document.querySelector('.main-content').classList.remove('view-mode');
+            renderHistory();
+        }
+
+        // ----- New / Reset -----
+        function startNew() {
+            document.getElementById('promptInput').value = '';
+            document.getElementById('responseA').value = '';
+            document.getElementById('responseB').value = '';
+            document.getElementById('notesInput').value = '';
+            updateCharCount('A');
+            updateCharCount('B');
+            ratings = { A: {}, B: {} };
+            currentWinner = null;
+
+            document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active', 'active-a', 'active-b'));
+            CATEGORIES.forEach(cat => {
+                document.getElementById(`val_A_${cat}`).textContent = '—';
+                document.getElementById(`val_B_${cat}`).textContent = '—';
+            });
+            selectWinner(null);
+            document.getElementById('winA').className = 'winner-option';
+            document.getElementById('winB').className = 'winner-option';
+            document.getElementById('winTie').className = 'winner-option';
+
+            exitViewMode();
+            document.querySelector('.main-content').scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // ----- Export -----
+        function exportAll() {
+            if (!evaluations.length) return showToast('⚠️ No evaluations to export.', 'error');
+            const blob = new Blob([JSON.stringify(evaluations, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `llm-evaluations-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            showToast('📥 Exported!', 'success');
+        }
+
+        function previewJSON() {
+            const prompt = document.getElementById('promptInput').value.trim();
+            if (!prompt) return showToast('⚠️ Enter a prompt first.', 'error');
+            const data = {
+                prompt,
+                responses: {
+                    A: document.getElementById('responseA').value.trim(),
+                    B: document.getElementById('responseB').value.trim()
+                },
+                ratings: JSON.parse(JSON.stringify(ratings)),
+                winner: currentWinner,
+                notes: document.getElementById('notesInput').value.trim()
+            };
+            document.getElementById('modalTitle').innerHTML = '📄 JSON Preview';
+            document.getElementById('modalContent').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('modalOverlay').classList.add('show');
+        }
+
+        function copyJSON() {
+            const text = document.getElementById('modalContent').textContent;
+            navigator.clipboard.writeText(text);
+            showToast('📋 Copied to clipboard!', 'success');
+        }
+
+        function closeModal(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('modalOverlay').classList.remove('show');
+        }
+
+        function clearHistory() {
+            if (!evaluations.length) return;
+            if (!confirm('Clear all evaluation history?')) return;
+            evaluations = [];
+            save();
+            renderHistory();
+            startNew();
+            showToast('🗑 History cleared.', 'success');
+        }
+
+        // ----- Helpers -----
+        function save() {
+            localStorage.setItem('llm_evaluations', JSON.stringify(evaluations));
+        }
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast ${type} show`;
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function formatDate(iso) {
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        init();
+    </script>
+</body>
+</html>

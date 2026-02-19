@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeLens — AI Code Quality Reviewer</title>
+    <meta name="description"
+        content="Intelligent code quality analysis tool. Paste your code, get instant feedback on quality, best practices, security, and performance.">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1e293b;
+            --bg-card: rgba(17, 24, 39, 0.75);
+            --border: rgba(16, 185, 129, 0.12);
+            --border-hover: rgba(16, 185, 129, 0.35);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #10b981;
+            --accent-light: #34d399;
+            --accent-glow: rgba(16, 185, 129, 0.25);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --purple: #8b5cf6;
+            --radius: 14px;
+            --radius-sm: 8px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 15% 15%, rgba(16, 185, 129, 0.06), transparent),
+                radial-gradient(ellipse 500px 500px at 85% 85%, rgba(139, 92, 246, 0.04), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 14, 26, 0.88);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+        }
+
+        .header-inner {
+            max-width: 1300px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 60px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), #059669);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .logo-text {
+            font-size: 1.1rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-badge {
+            padding: 3px 8px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: var(--accent-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #059669, var(--accent));
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 25px var(--accent-glow);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.15);
+        }
+
+        /* Main Layout */
+        .main {
+            position: relative;
+            z-index: 1;
+            max-width: 1300px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem 4rem;
+        }
+
+        /* Top controls */
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+        }
+
+        .lang-select {
+            padding: 8px 14px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .lang-select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .sample-btns {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .sample-btn {
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: rgba(16, 185, 129, 0.06);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: inherit;
+            font-weight: 500;
+        }
+
+        .sample-btn:hover {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
+
+        /* Split layout */
+        .split-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+            min-height: 500px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .card-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .card-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .line-count {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Code Editor */
+        .code-editor {
+            position: relative;
+            display: flex;
+            height: 520px;
+        }
+
+        .line-numbers {
+            padding: 16px 0;
+            width: 48px;
+            background: rgba(0, 0, 0, 0.2);
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .line-num {
+            padding-right: 12px;
+            height: 1.7em;
+        }
+
+        .code-input {
+            flex: 1;
+            padding: 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.7;
+            resize: none;
+            outline: none;
+            tab-size: 4;
+            overflow-y: auto;
+            white-space: pre;
+        }
+
+        .code-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .code-input::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .code-input::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .code-input::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        /* Results Panel */
+        .results-panel {
+            display: flex;
+            flex-direction: column;
+            height: 520px;
+        }
+
+        .results-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .results-content::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .results-content::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        /* Score ring */
+        .score-section {
+            text-align: center;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .score-ring {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 12px;
+            position: relative;
+        }
+
+        .score-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .score-ring-bg {
+            fill: none;
+            stroke: var(--bg-tertiary);
+            stroke-width: 8;
+        }
+
+        .score-ring-fg {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s ease, stroke 0.5s;
+        }
+
+        .score-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.8rem;
+            font-weight: 800;
+        }
+
+        .score-label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .score-grade {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Metric bars */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 1.25rem;
+        }
+
+        .metric-card {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .metric-name {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-score {
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .metric-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .metric-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s ease;
+        }
+
+        /* Issues list */
+        .issues-section {
+            margin-bottom: 1rem;
+        }
+
+        .issues-header {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .issue-count-badge {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .issue-item {
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 6px;
+            border-left: 3px solid;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .issue-item:hover {
+            transform: translateX(2px);
+        }
+
+        .issue-critical {
+            background: rgba(239, 68, 68, 0.06);
+            border-color: var(--danger);
+        }
+
+        .issue-warning {
+            background: rgba(245, 158, 11, 0.06);
+            border-color: var(--warning);
+        }
+
+        .issue-info {
+            background: rgba(59, 130, 246, 0.06);
+            border-color: var(--info);
+        }
+
+        .issue-suggestion {
+            background: rgba(139, 92, 246, 0.06);
+            border-color: var(--purple);
+        }
+
+        .issue-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .issue-severity {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .sev-critical {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+        }
+
+        .sev-warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .sev-info {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--info);
+        }
+
+        .sev-suggestion {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--purple);
+        }
+
+        .issue-line {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .issue-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .issue-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .issue-fix {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(16, 185, 129, 0.06);
+            border-radius: 6px;
+            font-size: 0.72rem;
+            color: var(--accent-light);
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.5;
+        }
+
+        .issue-fix-label {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        /* Empty state */
+        .results-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .results-empty-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        .results-empty h3 {
+            font-size: 1rem;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .results-empty p {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+
+        /* Summary cards row */
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 1.25rem;
+        }
+
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        .summary-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+
+        .summary-icon {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+
+        .summary-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+        }
+
+        .summary-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* History */
+        .history-section {
+            margin-top: 1.5rem;
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .history-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .history-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .history-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
+        }
+
+        .history-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .history-lang {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-light);
+        }
+
+        .history-score {
+            font-size: 1.1rem;
+            font-weight: 800;
+        }
+
+        .history-date {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+        }
+
+        .history-preview {
+            font-size: 0.72rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 6px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            font-weight: 500;
+            box-shadow: var(--shadow);
+            z-index: 500;
+            transform: translateX(120%);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.4s ease forwards;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .split-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-row {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .main {
+                padding: 1rem;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .summary-row {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-inner {
+                padding: 0 1rem;
+            }
+        }
+
+        /* Analyzing animation */
+        .analyzing-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 5;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            border-radius: var(--radius);
+        }
+
+        .analyzing-overlay.show {
+            display: flex;
+        }
+
+        .pulse-ring {
+            width: 60px;
+            height: 60px;
+            border: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: pulse 1.2s ease infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1.4);
+                opacity: 0;
+            }
+        }
+
+        .analyzing-text {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent-light);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">🔍</div>
+                <span class="logo-text">CodeLens</span>
+                <span class="logo-badge">AI Reviewer</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-ghost" onclick="exportReport()">📥 Export Report</button>
+                <button class="btn btn-ghost btn-danger" onclick="clearAll()">🗑 Clear</button>
+                <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeCode()">🚀 Analyze Code</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="main">
+        <!-- Controls -->
+        <div class="controls-bar animate-in">
+            <select class="lang-select" id="langSelect">
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="cpp">C++</option>
+                <option value="typescript">TypeScript</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="sql">SQL</option>
+            </select>
+            <div class="sample-btns">
+                <button class="sample-btn" onclick="loadSample(0)">🐛 Buggy Function</button>
+                <button class="sample-btn" onclick="loadSample(1)">🔓 Security Issue</button>
+                <button class="sample-btn" onclick="loadSample(2)">🐢 Slow Code</button>
+                <button class="sample-btn" onclick="loadSample(3)">✨ Clean Code</button>
+            </div>
+        </div>
+
+        <!-- Split Panel -->
+        <div class="split-layout animate-in">
+            <!-- Code Editor -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">💻 Code Input</span>
+                    <span class="line-count" id="lineCount">0 lines</span>
+                </div>
+                <div class="code-editor">
+                    <div class="line-numbers" id="lineNumbers"></div>
+                    <textarea class="code-input" id="codeInput" placeholder="Paste your code here or load a sample..."
+                        spellcheck="false" oninput="updateLineNumbers()"></textarea>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="card" style="position:relative;">
+                <div class="card-header">
+                    <span class="card-title">📊 Analysis Results</span>
+                    <span class="line-count" id="issueCountHeader">—</span>
+                </div>
+                <div class="results-panel" id="resultsPanel">
+                    <div class="results-content" id="resultsContent">
+                        <div class="results-empty" id="resultsEmpty">
+                            <div class="results-empty-icon">🔬</div>
+                            <h3>Ready to Analyze</h3>
+                            <p>Paste code and hit "Analyze Code" to get detailed quality feedback.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="analyzing-overlay" id="analyzingOverlay">
+                    <div class="pulse-ring"></div>
+                    <span class="analyzing-text">Analyzing code...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-row animate-in" id="summaryRow" style="display:none;">
+            <div class="summary-card">
+                <div class="summary-icon">🐛</div>
+                <div class="summary-value" id="sumBugs" style="color:var(--danger);">0</div>
+                <div class="summary-label">Critical Issues</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-icon">⚠️</div>
+                <div class="summary-value" id="sumWarnings" style="color:var(--warning);">0</div>
+                <div class="summary-label">Warnings</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-icon">💡</div>
+                <div class="summary-value" id="sumSuggestions" style="color:var(--purple);">0</div>
+                <div class="summary-label">Suggestions</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-icon">📏</div>
+                <div class="summary-value" id="sumLines" style="color:var(--info);">0</div>
+                <div class="summary-label">Lines Analyzed</div>
+            </div>
+        </div>
+
+        <!-- History -->
+        <div class="history-section" id="historySection">
+            <div class="history-header">
+                <span class="history-title">📋 Review History <span class="issue-count-badge"
+                        style="background:rgba(16,185,129,0.1);color:var(--accent-light);"
+                        id="historyCount">0</span></span>
+                <button class="btn btn-ghost" onclick="clearHistory()" style="font-size:0.72rem;padding:5px 10px;">Clear
+                    History</button>
+            </div>
+            <div class="history-grid" id="historyGrid"></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ===== Code Analysis Rules =====
+        const RULES = {
+            javascript: [
+                { pattern: /eval\s*\(/, severity: 'critical', title: 'Dangerous eval() usage', desc: 'eval() executes arbitrary code and is a major security risk. Attacker-controlled input could lead to remote code execution.', fix: 'Use JSON.parse() for JSON data, or Function constructor for controlled dynamic code.', category: 'security' },
+                { pattern: /innerHTML\s*=/, severity: 'critical', title: 'innerHTML XSS vulnerability', desc: 'Directly setting innerHTML with unsanitized input can lead to Cross-Site Scripting (XSS) attacks.', fix: 'Use textContent for text, or DOMPurify.sanitize() for safe HTML insertion.', category: 'security' },
+                { pattern: /document\.write\s*\(/, severity: 'warning', title: 'document.write() usage', desc: 'document.write() can overwrite the entire document and blocks page rendering. Considered a bad practice.', fix: 'Use DOM manipulation methods like appendChild(), insertAdjacentHTML(), or a templating system.', category: 'best-practice' },
+                { pattern: /var\s+\w/, severity: 'warning', title: 'Using var instead of let/const', desc: 'var declarations are function-scoped and can lead to hoisting bugs. Modern JS should use block-scoped declarations.', fix: 'Replace var with const for values that don\'t change, or let for mutable variables.', category: 'best-practice' },
+                { pattern: /==(?!=)/, severity: 'warning', title: 'Loose equality operator (==)', desc: 'The == operator performs type coercion which can cause unexpected behavior (e.g., "0" == false is true).', fix: 'Use strict equality (===) and strict inequality (!==) to avoid type coercion bugs.', category: 'reliability' },
+                { pattern: /console\.(log|warn|error|debug|info)\s*\(/, severity: 'info', title: 'Console statement found', desc: 'Console statements should be removed from production code. They can expose sensitive information and slow down the app.', fix: 'Remove console statements or use a proper logging library with environment-based log levels.', category: 'best-practice' },
+                { pattern: /catch\s*\(\s*\w*\s*\)\s*\{\s*\}/, severity: 'warning', title: 'Empty catch block', desc: 'Swallowing exceptions silently makes debugging extremely difficult. Errors should always be handled or logged.', fix: 'Log the error, re-throw it, or handle it appropriately inside the catch block.', category: 'reliability' },
+                { pattern: /setTimeout\s*\(\s*["']/, severity: 'warning', title: 'String passed to setTimeout', desc: 'Passing a string to setTimeout triggers an implicit eval(), which is slow and a security risk.', fix: 'Pass a function reference instead: setTimeout(() => { ... }, delay)', category: 'security' },
+                { pattern: /\.then\s*\(.*\)(?![\s\S]*\.catch)/, severity: 'info', title: 'Promise without .catch()', desc: 'Unhandled promise rejections can crash Node.js processes and cause silent failures in browsers.', fix: 'Add .catch() to handle errors, or use try/catch with async/await.', category: 'reliability' },
+                { pattern: /for\s*\(\s*(var|let)\s+\w+\s+in\s+/, severity: 'info', title: 'for..in on arrays', desc: 'for..in iterates over all enumerable properties including inherited ones, not just array indices.', fix: 'Use for..of, Array.forEach(), or Array.map() for array iteration.', category: 'best-practice' },
+                { pattern: /new\s+Array\s*\(/, severity: 'suggestion', title: 'Using new Array() constructor', desc: 'The Array constructor has confusing behavior with a single numeric argument — new Array(3) creates an empty array of length 3, not [3].', fix: 'Use array literal syntax: [] instead of new Array().', category: 'best-practice' },
+                { pattern: /(\w+)\s*=\s*\1\s*\|\|\s*/, severity: 'suggestion', title: 'Consider nullish coalescing (??)', desc: 'The || operator treats 0, "", and false as falsy, which may not be intended.', fix: 'Use the nullish coalescing operator (??) to only default on null/undefined.', category: 'best-practice' },
+                { pattern: /function\s+\w+\s*\([^)]{80,}\)/, severity: 'suggestion', title: 'Too many function parameters', desc: 'Functions with many parameters are hard to use and maintain. Consider using an options object.', fix: 'Refactor to accept a single options/config object parameter.', category: 'maintainability' },
+                { pattern: /\/\/\s*TODO/i, severity: 'info', title: 'TODO comment found', desc: 'Outstanding TODO comments indicate incomplete work that should be tracked properly.', fix: 'Create a ticket/issue for the TODO item and reference it in the comment.', category: 'maintainability' },
+                { pattern: /(\w+)\s*&&\s*\1\s*\.\s*\w+/, severity: 'suggestion', title: 'Consider optional chaining (?.)', desc: 'Manual null checks can be simplified with optional chaining.', fix: 'Use optional chaining: obj?.property instead of obj && obj.property', category: 'best-practice' },
+            ],
+            python: [
+                { pattern: /except\s*:/, severity: 'critical', title: 'Bare except clause', desc: 'Catching all exceptions including SystemExit and KeyboardInterrupt masks critical errors and makes debugging nearly impossible.', fix: 'Catch specific exceptions: except ValueError as e: or at minimum except Exception as e:', category: 'reliability' },
+                { pattern: /exec\s*\(/, severity: 'critical', title: 'Dangerous exec() usage', desc: 'exec() runs arbitrary Python code and is a serious security vulnerability when used with user input.', fix: 'Use safer alternatives like ast.literal_eval() for evaluating data, or a proper parser.', category: 'security' },
+                { pattern: /input\s*\(/, severity: 'info', title: 'User input without validation', desc: 'Raw user input should always be validated and sanitized before use.', fix: 'Add input validation, type checking, and sanitization.', category: 'security' },
+                { pattern: /import\s+\*/, severity: 'warning', title: 'Wildcard import (import *)', desc: 'Wildcard imports pollute the namespace, make it unclear where names come from, and can cause name collisions.', fix: 'Import specific names: from module import func1, func2', category: 'best-practice' },
+                { pattern: /print\s*\(/, severity: 'info', title: 'Print statement found', desc: 'Print statements should be replaced with proper logging in production code.', fix: 'Use the logging module: import logging; logger = logging.getLogger(__name__)', category: 'best-practice' },
+                { pattern: /==\s*(True|False|None)/, severity: 'warning', title: 'Comparison to singleton with ==', desc: 'Singletons like True, False, None should be compared using "is" not "==".', fix: 'Use "is None", "is True", "is not None" for singleton comparisons.', category: 'best-practice' },
+                { pattern: /def\s+\w+\s*\([^)]*=[[\{]/, severity: 'critical', title: 'Mutable default argument', desc: 'Using mutable objects (list, dict) as default arguments is a common Python gotcha — they\'re shared across calls.', fix: 'Use None as default and create the mutable object inside the function: def func(items=None): items = items or []', category: 'reliability' },
+                { pattern: /global\s+\w+/, severity: 'warning', title: 'Global variable usage', desc: 'Global variables make code hard to test, debug, and reason about. They create hidden dependencies.', fix: 'Pass values as function parameters or use class attributes.', category: 'maintainability' },
+                { pattern: /#\s*TODO/i, severity: 'info', title: 'TODO comment found', desc: 'Outstanding TODO comments indicate incomplete work.', fix: 'Track TODOs as issues and reference them in comments.', category: 'maintainability' },
+                { pattern: /len\(\w+\)\s*==\s*0/, severity: 'suggestion', title: 'Verbose emptiness check', desc: 'Checking len(x) == 0 is less Pythonic than using truthiness.', fix: 'Use "if not my_list:" instead of "if len(my_list) == 0:"', category: 'best-practice' },
+            ],
+            java: [
+                { pattern: /catch\s*\(\s*Exception\s/, severity: 'warning', title: 'Catching generic Exception', desc: 'Catching broad Exception types can mask important errors and makes debugging difficult.', fix: 'Catch specific exception types relevant to the operation.', category: 'reliability' },
+                { pattern: /\.equals\s*\(\s*null\s*\)/, severity: 'critical', title: 'Comparing to null with equals()', desc: 'This will throw NullPointerException if the object is null. Always use == for null comparison.', fix: 'Use obj == null or Objects.isNull(obj) for null checks.', category: 'reliability' },
+                { pattern: /System\.out\.print/, severity: 'info', title: 'System.out usage', desc: 'Direct console output should be replaced with a proper logging framework.', fix: 'Use SLF4J/Log4j: private static final Logger logger = LoggerFactory.getLogger(MyClass.class);', category: 'best-practice' },
+                { pattern: /new\s+String\s*\(/, severity: 'suggestion', title: 'Unnecessary String constructor', desc: 'Creating String objects with new is unnecessary and wasteful. String literals are already interned.', fix: 'Use string literals directly: String s = "hello" instead of new String("hello")', category: 'performance' },
+                { pattern: /public\s+\w+\s+\w+\s*;/, severity: 'warning', title: 'Public field without encapsulation', desc: 'Public fields break encapsulation. Changes to internal representation will break all callers.', fix: 'Use private fields with getter/setter methods.', category: 'best-practice' },
+            ]
+        };
+
+        // Add generic rules used for all languages
+        const GENERIC_RULES = [
+            { pattern: /password\s*=\s*["'][^"']+["']/, severity: 'critical', title: 'Hardcoded password detected', desc: 'Hardcoded credentials are a severe security risk. They can be extracted from source code and used for unauthorized access.', fix: 'Use environment variables, secret managers (AWS Secrets Manager, HashiCorp Vault), or config files excluded from VCS.', category: 'security' },
+            { pattern: /(api[_-]?key|secret|token)\s*=\s*["'][^"']+["']/i, severity: 'critical', title: 'Hardcoded API key/secret', desc: 'API keys and secrets exposed in source code can be scraped from public repos and abused.', fix: 'Store secrets in environment variables or a dedicated secrets manager.', category: 'security' },
+            { pattern: /http:\/\/(?!localhost|127\.0)/, severity: 'warning', title: 'Insecure HTTP URL', desc: 'Using HTTP instead of HTTPS transmits data in plaintext, vulnerable to man-in-the-middle attacks.', fix: 'Use HTTPS for all external URLs.', category: 'security' },
+            { pattern: /\n{4,}/, severity: 'info', title: 'Excessive blank lines', desc: 'Too many consecutive blank lines reduce readability and waste vertical space.', fix: 'Use at most two consecutive blank lines between sections.', category: 'style' },
+        ];
+
+        // ===== Sample Code =====
+        const SAMPLES = [
+            {
+                lang: 'javascript',
+                code: `function processUserData(data) {
+    var result = [];
+    var temp = null;
+    
+    for (var i in data) {
+        if (data[i].age == "18") {
+            result.push(data[i]);
+        }
+    }
+    
+    // TODO: add validation later
+    
+    try {
+        var parsed = eval('(' + data + ')');
+    } catch(e) {}
+    
+    document.getElementById("output").innerHTML = result;
+    
+    console.log("Processed " + result.length + " users");
+    
+    setTimeout("updateUI()", 1000);
+    
+    return result;
+}`
+            },
+            {
+                lang: 'javascript',
+                code: `const express = require('express');
+const app = express();
+
+const DB_PASSWORD = "super_secret_123";
+const API_KEY = "sk-abc123xyz789";
+
+app.get('/user', (req, res) => {
+    const userId = req.query.id;
+    const query = "SELECT * FROM users WHERE id = " + userId;
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            console.log(err);
+        }
+        res.send(results);
+    });
+});
+
+app.get('/page', (req, res) => {
+    const content = req.query.html;
+    res.send('<div>' + content + '</div>');
+});
+
+app.listen(3000);
+console.log("Server running on http://mysite.com:3000");`
+            },
+            {
+                lang: 'python',
+                code: `import time
+from random import *
+
+def find_duplicates(lst):
+    duplicates = [] 
+    for i in range(len(lst)):
+        for j in range(i + 1, len(lst)):
+            if lst[i] == lst[j]:
+                if lst[i] not in duplicates:
+                    duplicates.append(lst[i])
+    return duplicates
+
+def process_data(items, cache={}):
+    global total_count
+    total_count = 0
+    
+    for item in items:
+        try:
+            result = exec(item['formula'])
+            cache[item['id']] = result
+            total_count += 1
+        except:
+            pass
+    
+    if len(items) == 0:
+        print("No items to process")
+    
+    if cache == None:
+        return []
+    
+    # TODO: optimize this function
+    print(f"Processed {total_count} items")
+    return cache`
+            },
+            {
+                lang: 'javascript',
+                code: `/**
+ * Calculates the factorial of a non-negative integer.
+ * @param {number} n - The input number
+ * @returns {number} The factorial of n
+ * @throws {RangeError} If n is negative
+ */
+function factorial(n) {
+    if (!Number.isInteger(n) || n < 0) {
+        throw new RangeError('Input must be a non-negative integer');
+    }
+    
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+}
+
+/**
+ * Debounces a function call.
+ * @param {Function} fn - Function to debounce
+ * @param {number} delay - Delay in milliseconds
+ * @returns {Function} Debounced function
+ */
+function debounce(fn, delay = 300) {
+    let timeoutId = null;
+    
+    return function (...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            fn.apply(this, args);
+        }, delay);
+    };
+}
+
+export { factorial, debounce };`
+            }
+        ];
+
+        let history = JSON.parse(localStorage.getItem('code_reviews') || '[]');
+          let lastAnalysis = null;
+
+        // ===== Init =====
+        function init() {
+            updateLineNumbers();
+            renderHistory();
+        }
+
+        // ===== Line Numbers =====
+        function updateLineNumbers() {
+            const code = document.getElementById('codeInput').value;
+            const lines = code.split('\n');
+            const nums = document.getElementById('lineNumbers');
+            nums.innerHTML = lines.map((_, i) => `<div class="line-num">${i + 1}</div>`).join('');
+            document.getElementById('lineCount').textContent = `${lines.length} lines`;
+        }
+
+        // ===== Load Sample =====
+        function loadSample(idx) {
+            const sample = SAMPLES[idx];
+            document.getElementById('codeInput').value = sample.code;
+            document.getElementById('langSelect').value = sample.lang;
+            updateLineNumbers();
+            showToast('✨ Sample loaded!');
+        }
+
+        // ===== Analyze =====
+        function analyzeCode() {
+            const code = document.getElementById('codeInput').value.trim();
+            if (!code) return showToast('⚠️ Please enter some code first.');
+
+            const lang = document.getElementById('langSelect').value;
+            const lines = code.split('\n');
+
+            // Show analyzing animation
+            document.getElementById('analyzingOverlay').classList.add('show');
+
+            setTimeout(() => {
+                const issues = [];
+
+                // Get language-specific rules
+                const langRules = RULES[lang] || [];
+                const allRules = [...langRules, ...GENERIC_RULES];
+
+                // Check each line
+                lines.forEach((line, lineIdx) => {
+                    allRules.forEach(rule => {
+                        if (rule.pattern.test(line)) {
+                            issues.push({
+                                line: lineIdx + 1,
+                                severity: rule.severity,
+                                title: rule.title,
+                                desc: rule.desc,
+                                fix: rule.fix,
+                                category: rule.category,
+                                code: line.trim()
+                            });
+                        }
+                    });
+                });
+
+                // Calculate scores
+                const criticalCount = issues.filter(i => i.severity === 'critical').length;
+                const warningCount = issues.filter(i => i.severity === 'warning').length;
+                const infoCount = issues.filter(i => i.severity === 'info').length;
+                const suggestionCount = issues.filter(i => i.severity === 'suggestion').length;
+
+                // Overall score (100 base, minus penalties)
+                let score = 100;
+                score -= criticalCount * 15;
+                score -= warningCount * 8;
+                score -= infoCount * 3;
+                score -= suggestionCount * 1;
+                score = Math.max(0, Math.min(100, score));
+
+                // Category scores
+                const categories = {
+                    security: 100,
+                    reliability: 100,
+                    maintainability: 100,
+                    performance: 100
+                };
+
+                issues.forEach(issue => {
+                    const cat = issue.category;
+                    if (cat === 'security') categories.security -= (issue.severity === 'critical' ? 25 : 10);
+                    else if (cat === 'reliability') categories.reliability -= (issue.severity === 'critical' ? 25 : 10);
+                    else if (cat === 'maintainability' || cat === 'best-practice' || cat === 'style') categories.maintainability -= (issue.severity === 'critical' ? 20 : 8);
+                    else if (cat === 'performance') categories.performance -= (issue.severity === 'critical' ? 20 : 10);
+                    else {
+                        // Distribute across relevant categories
+                        if (issue.severity === 'critical') {
+                            categories.reliability -= 10;
+                            categories.security -= 5;
+                        } else {
+                            categories.maintainability -= 5;
+                        }
+                    }
+                });
+
+                Object.keys(categories).forEach(k => {
+                    categories[k] = Math.max(0, Math.min(100, categories[k]));
+                });
+
+                lastAnalysis = { code, lang, score, issues, categories, lines: lines.length, timestamp: new Date().toISOString() };
+
+                // Save to history
+                history.unshift(lastAnalysis);
+                if (history.length > 20) history.pop();
+                localStorage.setItem('code_reviews', JSON.stringify(history));
+
+                // Render results
+                renderResults(lastAnalysis);
+                renderHistory();
+
+                // Update summary
+                document.getElementById('summaryRow').style.display = '';
+                document.getElementById('sumBugs').textContent = criticalCount;
+                document.getElementById('sumWarnings').textContent = warningCount;
+                document.getElementById('sumSuggestions').textContent = suggestionCount + infoCount;
+                document.getElementById('sumLines').textContent = lines.length;
+
+                document.getElementById('analyzingOverlay').classList.remove('show');
+                showToast(`✅ Analysis complete — Score: ${score}/100`);
+            }, 800);
+        }
+
+        // ===== Render Results =====
+        function renderResults(analysis) {
+            const { score, issues, categories } = analysis;
+            const content = document.getElementById('resultsContent');
+
+            const scoreColor = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--danger)';
+            const grade = score >= 90 ? 'A — Excellent' : score >= 80 ? 'B — Good' : score >= 60 ? 'C — Needs Work' : score >= 40 ? 'D — Poor' : 'F — Critical';
+            const circumference = 2 * Math.PI * 48;
+            const offset = circumference - (score / 100) * circumference;
+
+            const criticalIssues = issues.filter(i => i.severity === 'critical');
+            const warningIssues = issues.filter(i => i.severity === 'warning');
+            const infoIssues = issues.filter(i => i.severity === 'info');
+            const suggestIssues = issues.filter(i => i.severity === 'suggestion');
+
+            document.getElementById('issueCountHeader').textContent = `${issues.length} issues`;
+
+            content.innerHTML = `
+                <!-- Score -->
+                <div class="score-section">
+                    <div class="score-ring">
+                        <svg viewBox="0 0 108 108">
+                            <circle class="score-ring-bg" cx="54" cy="54" r="48"/>
+                            <circle class="score-ring-fg" cx="54" cy="54" r="48"
+                                stroke="${scoreColor}"
+                                stroke-dasharray="${circumference}"
+                                stroke-dashoffset="${offset}"/>
+                        </svg>
+                        <div class="score-value" style="color:${scoreColor}">${score}</div>
+                    </div>
+                    <div class="score-label">Quality Score</div>
+                    <div class="score-grade">${grade}</div>
+                </div>
+
+                <!-- Metrics -->
+                <div class="metrics-grid">
+                    ${renderMetric('Security', categories.security)}
+                    ${renderMetric('Reliability', categories.reliability)}
+                    ${renderMetric('Maintainability', categories.maintainability)}
+                    ${renderMetric('Performance', categories.performance)}
+                </div>
+
+                <!-- Issues -->
+                ${criticalIssues.length ? renderIssueGroup('🔴 Critical', criticalIssues, 'critical') : ''}
+                ${warningIssues.length ? renderIssueGroup('🟡 Warnings', warningIssues, 'warning') : ''}
+                ${infoIssues.length ? renderIssueGroup('🔵 Info', infoIssues, 'info') : ''}
+                ${suggestIssues.length ? renderIssueGroup('🟣 Suggestions', suggestIssues, 'suggestion') : ''}
+                
+                ${issues.length === 0 ? '<div style="text-align:center;padding:2rem;"><div style="font-size:3rem;margin-bottom:10px;">🎉</div><h3 style="color:var(--success);">No issues found!</h3><p style="color:var(--text-muted);font-size:0.82rem;">Great job — this code looks clean.</p></div>' : ''}
+            `;
+        }
+
+        function renderMetric(name, score) {
+            const color = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--danger)';
+            return `
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">${name}</span>
+                        <span class="metric-score" style="color:${color}">${score}%</span>
+                    </div>
+                    <div class="metric-bar">
+                        <div class="metric-fill" style="width:${score}%;background:${color};"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderIssueGroup(label, issues, severity) {
+            return `
+                <div class="issues-section">
+                    <div class="issues-header">
+                        ${label}
+                        <span class="issue-count-badge sev-${severity}">${issues.length}</span>
+                    </div>
+                    ${issues.map(issue => `
+                        <div class="issue-item issue-${severity}">
+                            <div class="issue-top">
+                                <span class="issue-severity sev-${severity}">${issue.severity}</span>
+                                <span class="issue-line">Line ${issue.line}</span>
+                            </div>
+                            <div class="issue-title">${issue.title}</div>
+                            <div class="issue-desc">${issue.desc}</div>
+                            <div class="issue-fix">
+                                <div class="issue-fix-label">💡 Suggested Fix</div>
+                                ${issue.fix}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ===== History =====
+        function renderHistory() {
+            const grid = document.getElementById('historyGrid');
+            document.getElementById('historyCount').textContent = history.length;
+
+            if (!history.length) {
+                grid.innerHTML = '<p style="color:var(--text-muted);font-size:0.82rem;grid-column:1/-1;text-align:center;padding:2rem;">No reviews yet. Analyze some code to get started!</p>';
+                return;
+            }
+
+            grid.innerHTML = history.map((h, i) => {
+                const scoreColor = h.score >= 80 ? 'var(--success)' : h.score >= 50 ? 'var(--warning)' : 'var(--danger)';
+                return `
+                    <div class="history-card" onclick="loadHistory(${i})">
+                        <div class="history-card-top">
+                            <span class="history-lang">${h.lang}</span>
+                            <span class="history-score" style="color:${scoreColor}">${h.score}</span>
+                        </div>
+                        <div class="history-date">${formatDate(h.timestamp)} · ${h.lines} lines · ${h.issues.length} issues</div>
+                        <div class="history-preview">${escapeHtml(h.code.split('\n')[0])}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function loadHistory(idx) {
+            const h = history[idx];
+            document.getElementById('codeInput').value = h.code;
+            document.getElementById('langSelect').value = h.lang;
+            updateLineNumbers();
+            renderResults(h);
+
+            document.getElementById('summaryRow').style.display = '';
+            const criticals = h.issues.filter(i => i.severity === 'critical').length;
+            const warnings = h.issues.filter(i => i.severity === 'warning').length;
+            const others = h.issues.filter(i => i.severity === 'info' || i.severity === 'suggestion').length;
+            document.getElementById('sumBugs').textContent = criticals;
+            document.getElementById('sumWarnings').textContent = warnings;
+            document.getElementById('sumSuggestions').textContent = others;
+            document.getElementById('sumLines').textContent = h.lines;
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            showToast('📋 Loaded from history');
+        }
+
+        // ===== Export =====
+        function exportReport() {
+            if (!lastAnalysis) return showToast('⚠️ Analyze code first to export a report.');
+
+            const report = {
+                tool: 'CodeLens — AI Code Quality Reviewer',
+                timestamp: lastAnalysis.timestamp,
+                language: lastAnalysis.lang,
+                linesAnalyzed: lastAnalysis.lines,
+                overallScore: lastAnalysis.score,
+                categoryScores: lastAnalysis.categories,
+                issuesSummary: {
+                    critical: lastAnalysis.issues.filter(i => i.severity === 'critical').length,
+                    warning: lastAnalysis.issues.filter(i => i.severity === 'warning').length,
+                    info: lastAnalysis.issues.filter(i => i.severity === 'info').length,
+                    suggestion: lastAnalysis.issues.filter(i => i.severity === 'suggestion').length
+                },
+                issues: lastAnalysis.issues,
+                codeSnippet: lastAnalysis.code
+            };
+
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `code-review-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            showToast('📥 Report exported!');
+        }
+
+        // ===== Clear =====
+        function clearAll() {
+            document.getElementById('codeInput').value = '';
+            updateLineNumbers();
+            document.getElementById('resultsContent').innerHTML = `
+                <div class="results-empty">
+                    <div class="results-empty-icon">🔬</div>
+                    <h3>Ready to Analyze</h3>
+                    <p>Paste code and hit "Analyze Code" to get detailed quality feedback.</p>
+                </div>
+            `;
+            document.getElementById('issueCountHeader').textContent = '—';
+            document.getElementById('summaryRow').style.display = 'none';
+            lastAnalysis = null;
+        }
+
+        function clearHistory() {
+            if (!history.length) return;
+            if (!confirm('Clear all review history?')) return;
+            history = [];
+            localStorage.setItem('code_reviews', '[]');
+            renderHistory();
+            showToast('🗑 History cleared.');
+        }
+
+        // ===== Helpers =====
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show';
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function formatDate(iso) {
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Tab key support
+        document.getElementById('codeInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const ta = e.target;
+                const start = ta.selectionStart;
+                const end = ta.selectionEnd;
+                ta.value = ta.value.substring(0, start) + '    ' + ta.value.substring(end);
+                ta.selectionStart = ta.selectionEnd = start + 4;
+                updateLineNumbers();
+            }
+        });
+
+        init();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Developer Suite — Productivity Tools</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0e1a;
+            --card: #111827;
+            --accent: #6366f1;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+        h1 { font-size: 3rem; margin-bottom: 0.5rem; background: linear-gradient(to right, #818cf8, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        p { color: var(--muted); margin-bottom: 3rem; font-size: 1.2rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; max-width: 1000px; width: 90%; }
+        .card { background: var(--card); border: 1px solid rgba(255,255,255,0.1); padding: 2rem; border-radius: 1rem; text-decoration: none; color: inherit; transition: all 0.3s; }
+        .card:hover { transform: translateY(-10px); border-color: var(--accent); box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2); }
+        .icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+        h2 { margin: 0 0 1rem; }
+        .card p { font-size: 0.9rem; margin-bottom: 0; }
+    </style>
+</head>
+<body>
+    <h1>AI Developer Suite</h1>
+    <p>A collection of specialized tools for AI engineering and development.</p>
+    <div class="grid">
+        <a href="1/" class="card">
+            <span class="icon">⚖️</span>
+            <h2>LLM Evaluator</h2>
+            <p>Side-by-side model response comparison and RLHF rating tool.</p>
+        </a>
+        <a href="3/" class="card">
+            <span class="icon">🔍</span>
+            <h2>CodeLens</h2>
+            <p>Intelligent AI code quality reviewer and security auditor.</p>
+        </a>
+        <a href="5/" class="card">
+            <span class="icon">✨</span>
+            <h2>PromptForge</h2>
+            <p>Advanced prompt engineering and optimization workbench.</p>
+        </a>
+    </div>
+</body>
+</html>
