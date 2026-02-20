@@ -313,6 +313,7 @@
                 <span class="logo-badge">Optimizer</span>
             </div>
             <div class="header-actions">
+                <button class="btn btn-ghost" onclick="toggleHistory()">📋 View History</button>
                 <button class="btn btn-ghost" onclick="clearAll()">🗑 Clear</button>
             </div>
         </div>
@@ -324,6 +325,13 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">📝 Your Prompt</span>
+                    <select class="pill" id="personaSelect" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer;" onchange="applyPersona()">
+                        <option value="">Select Persona (Optional)</option>
+                        <option value="storyteller">Expert Storyteller</option>
+                        <option value="developer">Senior Developer</option>
+                        <option value="academic">Academic Researcher</option>
+                        <option value="marketing">Marketing Specialist</option>
+                    </select>
                 </div>
                 <textarea class="prompt-input" id="inputPrompt" placeholder="Enter a prompt to optimize (e.g., 'Write a story about a cat')..." oninput="updateCount()"></textarea>
                 <div class="controls-bar">
@@ -345,16 +353,64 @@
                 </div>
             </div>
         </div>
+        
+        <!-- History Section -->
+        <div id="historyOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:1000; padding:2rem; overflow-y:auto;">
+            <div style="max-width:800px; margin:0 auto; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius); padding:2rem; position:relative;">
+                <button class="btn btn-ghost" style="position:absolute; top:1rem; right:1rem;" onclick="toggleHistory()">Close</button>
+                <h2 style="margin-bottom:1.5rem;">Optimization History</h2>
+                <div id="historyList"></div>
+            </div>
+        </div>
     </div>
 
     <div class="toast" id="toast"></div>
 
     <script>
+        /** @type {Object[]} */
+        let history = JSON.parse(localStorage.getItem('prompt_history') || '[]');
+
+        const PERSONAS = {
+            storyteller: "Act as an expert storyteller and creative writer.",
+            developer: "You are a senior software developer with expertise in clean code and system design.",
+            academic: "You are an academic researcher focusing on rigorous analysis and scholarly communication.",
+            marketing: "You are a professional marketing specialist and copywriter."
+        };
+
+        /**
+         * Updates the character count display.
+         */
         function updateCount() {
             const len = document.getElementById('inputPrompt').value.length;
             document.getElementById('charCount').textContent = `${len} chars`;
         }
 
+        /**
+         * Applies the selected persona to the prompt input.
+         */
+        function applyPersona() {
+            const persona = document.getElementById('personaSelect').value;
+            const input = document.getElementById('inputPrompt');
+            if (persona && PERSONAS[persona]) {
+                if (!input.value.startsWith(PERSONAS[persona])) {
+                    input.value = PERSONAS[persona] + "\n\n" + input.value;
+                    updateCount();
+                }
+            }
+        }
+
+        /**
+         * Toggles the visibility of the history overlay.
+         */
+        function toggleHistory() {
+            const overlay = document.getElementById('historyOverlay');
+            overlay.style.display = overlay.style.display === 'none' ? 'block' : 'none';
+            if (overlay.style.display === 'block') renderHistory();
+        }
+
+        /**
+         * Performs the prompt optimization logic.
+         */
         function optimize() {
             const input = document.getElementById('inputPrompt').value.trim();
             if (!input) return showToast('⚠️ Please enter a prompt first.');
@@ -371,6 +427,11 @@
                 const optimized = generateOptimized(input);
                 const score = Math.floor(Math.random() * 20) + 80;
                 
+                // Save to history
+                history.unshift({ input, optimized, score, timestamp: new Date().toISOString() });
+                if (history.length > 20) history.pop();
+                localStorage.setItem('prompt_history', JSON.stringify(history));
+
                 panel.innerHTML = `
                     <div class="analysis-pills">
                         <div class="pill">Clarity <span class="pill-score">92%</span></div>
@@ -386,13 +447,43 @@
             }, 1000);
         }
 
+        /**
+         * Generates an optimized version of the input prompt.
+         * @param {string} text - Original prompt.
+         * @returns {string} Optimized prompt.
+         */
         function generateOptimized(text) {
-            // diverse mock logic
-            const prefixes = ["Act as an expert storyteller.", "You are a senior developer.", "Imagine a futuristic world."];
-            const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-            return `${prefix} Based on the following request: "${text}", please provide a comprehensive, detailed, and creative response. Ensure you cover all key aspects, consider edge cases, and use a professional tone. 
+            return `Task: Optimize the following request for maximum clarity and output quality.\n\nOriginal Request: "${text}"\n\nOptimized Strategy:\n1. Clearly define the persona and context.\n2. Outline specific constraints and expectations.\n3. Request step-by-step reasoning or structured output.\n\nFull Prompt:\n[Refined Context] You are a highly capable AI assistant specializing in the domain related to the following request. Please provide a response that is accurate, detailed, and formatted for maximum readability. If the request is creative, focus on vivid imagery and character depth. If technical, ensure precision and best practices.\n\nUser Input: ${text}`;
+        }
 
-Additional context: The user is looking for high-quality output suitable for a professional setting.`;
+        /**
+         * Renders the optimization history in the overlay.
+         */
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            if (history.length === 0) {
+                list.innerHTML = '<p style="color:var(--text-muted);">No history yet.</p>';
+                return;
+            }
+            list.innerHTML = history.map((item, idx) => `
+                <div style="background:var(--bg-primary); padding:1rem; border-radius:var(--radius-sm); margin-bottom:1rem; border:1px solid var(--border);">
+                    <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.5rem;">${new Date(item.timestamp).toLocaleString()}</div>
+                    <div style="font-size:0.8rem; margin-bottom:0.5rem;"><strong>Input:</strong> ${item.input.substring(0, 100)}...</div>
+                    <button class="btn btn-ghost" style="font-size:0.7rem; padding:4px 8px;" onclick="loadHistoryItem(${idx})">Load</button>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * Loads a historical item back into the editor.
+         * @param {number} idx - Index in history.
+         */
+        function loadHistoryItem(idx) {
+            const item = history[idx];
+            document.getElementById('inputPrompt').value = item.input;
+            updateCount();
+            toggleHistory();
+            optimize();
         }
 
         function clearAll() {

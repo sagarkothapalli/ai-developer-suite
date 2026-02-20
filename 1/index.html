@@ -846,7 +846,10 @@
                             <span class="response-dot response-dot-a"></span>
                             <span class="response-name">Response A</span>
                         </div>
-                        <span class="char-count" id="charA">0 chars</span>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button class="sample-btn" onclick="copyText('responseA')" title="Copy Response A">📋 Copy</button>
+                            <span class="char-count" id="charA">0 chars</span>
+                        </div>
                     </div>
                     <textarea class="response-textarea" id="responseA" placeholder="Paste or type Response A here..." oninput="updateCharCount('A')"></textarea>
                 </div>
@@ -856,7 +859,10 @@
                             <span class="response-dot response-dot-b"></span>
                             <span class="response-name">Response B</span>
                         </div>
-                        <span class="char-count" id="charB">0 chars</span>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button class="sample-btn" onclick="copyText('responseB')" title="Copy Response B">📋 Copy</button>
+                            <span class="char-count" id="charB">0 chars</span>
+                        </div>
                     </div>
                     <textarea class="response-textarea" id="responseB" placeholder="Paste or type Response B here..." oninput="updateCharCount('B')"></textarea>
                 </div>
@@ -941,7 +947,16 @@
 
     <script>
         // ----- Data -----
+        /**
+         * Evaluation categories for AI responses.
+         * @type {string[]}
+         */
         const CATEGORIES = ['Helpfulness', 'Accuracy', 'Harmlessness', 'Conciseness'];
+        
+        /**
+         * Sample prompts and responses for testing.
+         * @type {Object[]}
+         */
         const SAMPLES = [
             {
                 prompt: "Explain quantum computing to a 10-year-old in simple terms.",
@@ -969,6 +984,17 @@
         let currentWinner = null;
         let ratings = { A: {}, B: {} };
         let viewingIndex = null;
+
+        /**
+         * Copies text from a specific textarea to the clipboard.
+         * @param {string} id - The element ID to copy from.
+         */
+        function copyText(id) {
+            const text = document.getElementById(id).value;
+            if (!text) return showToast('⚠️ Nothing to copy!', 'error');
+            navigator.clipboard.writeText(text);
+            showToast('📋 Copied to clipboard!', 'success');
+        }
 
         // ----- Init -----
         function init() {
